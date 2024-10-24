@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Basic Vocoder</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin-top: 50px;
+    }
+    button {
+      font-size: 18px;
+      padding: 10px 20px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>Basic Vocoder Demo</h1>
+  <button id="start-vocoder">Start Vocoder</button>
+
+  <script>
+    async function initVocoder() {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const analyser = audioCtx.createAnalyser();
+      
+      // Set FFT size (this determines how many frequency bands we analyze)
+      analyser.fftSize = 2048; // You can change this for more/less frequency resolution
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Float32Array(bufferLength);
+
+      // Create a GainNode to control the output volume
+      const gainNode = audioCtx.createGain();
+      gainNode.gain.value = 0.5;  // Set this to control volume
+
+      // Request access to the microphone
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const source = audioCtx.createMediaStreamSource(stream);
+
+      // Connect microphone input to the analyser
+      source.connect(analyser);
+      analyser.connect(gainNode);  // Connect the analyser to the gain node
+      gainNode.connect(audioCtx.destination);  // Connect the gain node to the output (speakers)
+
+      // Function to re-synthesize the sound with oscillators
+      function processAudio() {
+        analyser.getFloatFrequencyData(dataArray);  // Get frequency data (in dB)
+
+        // Clear existing oscillators
+        oscillators.forEach(osc => osc.disconnect());
+        oscillators = [];
+
+        // Create a new oscillator for each frequency band
+        for (let i = 0; i < bufferLength; i++) {
+          const frequency = (i * audioCtx.sampleRate) / analyser.fftSize;  // Get frequency for this band
+          const amplitude = Math.max(dataArray[i], -100);  // Clamp amplitude values
+
+          // Only create an oscillator for bands with significant amplitude
+          if (amplitude > -80) {  // Adjust this threshold for sensitivity
+            const osc = audioCtx.createOscillator();
+            osc.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+
+            // Use a gain node to control the oscillator's amplitude
+            const oscGain = audioCtx.createGain();
+            oscGain.gain.value = (amplitude + 100) / 100;  // Normalize amplitude to 0-1
+
+            // Connect oscillator to gain, then to the audio context
+            osc.connect(oscGain);
+            oscGain.connect(audioCtx.destination);
+
+            // Start the oscillator
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.1);  // Short-lived, replaced in the next frame
+
+            oscillators.push(osc);
+          }
+        }
+
+        // Keep processing audio
+        requestAnimationFrame(processAudio);
+      }
+
+      let oscillators = [];
+      processAudio();  // Start processing the audio
+    }
+
+    // Initialize the vocoder when the button is clicked
+    document.querySelector('#start-vocoder').addEventListener('click', () => {
+      initVocoder();
+    });
+  </script>
+</body>
+</html>
