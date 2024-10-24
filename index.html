@@ -19,78 +19,80 @@
 </head>
 <body>
   <h1>Improved Vocoder Demo</h1>
-  <button id="start-vocoder">Start Vocoder</button>
+  <button id="start-vocoder" onclick="">Start Vocoder</button>
 
   <script>
     async function initVocoder() {
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const analyser = audioCtx.createAnalyser();
-      
-      // Set FFT size
-      analyser.fftSize = 1024; // must be a power of 2
-      const bufferLength = analyser.frequencyBinCount;
-      const dataArray = new Float32Array(bufferLength);
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const analyser = audioCtx.createAnalyser();
+        
+        analyser.fftSize = 2048;  // Adjust this for more or fewer frequency bins
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Float32Array(bufferLength);
 
-      // Create a GainNode to control the output volume
-      const gainNode = audioCtx.createGain();
-      gainNode.gain.value = 0.5;  // Set this to control overall volume
+        const gainNode = audioCtx.createGain();
+        gainNode.gain.value = 0.5;
 
-      // Request access to the microphone
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const source = audioCtx.createMediaStreamSource(stream);
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const source = audioCtx.createMediaStreamSource(stream);
+        source.connect(analyser);
+        analyser.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
 
-      // Connect microphone input to the analyser
-      source.connect(analyser);
-      analyser.connect(gainNode);  // Connect the analyser to the gain node
-      gainNode.connect(audioCtx.destination);  // Connect the gain node to the output
+        // Define the frequency range and number of oscillators
+        const minFreq = 20;  // Minimum frequency (Hz)
+        const maxFreq = 10000;  // Maximum frequency (Hz)
+        const numOscillators = 40;  // Number of oscillators (exponentially spaced)
 
-      // Create a fixed set of oscillators for each frequency bin
-      const oscillators = [];
-      const gainNodes = [];
+        // Get exponentially spaced target frequencies
+        const targetFrequencies = getExponentialBins(minFreq, maxFreq, numOscillators);
 
-      for (let i = 0; i < bufferLength; i++) {
-        const frequency = (i * audioCtx.sampleRate) / analyser.fftSize;  // Get frequency for this band
+        // Create a set of oscillators for the selected target frequencies
+        const oscillators = [];
+        const gainNodes = [];
 
-        const osc = audioCtx.createOscillator();
-        osc.frequency.setValueAtTime(frequency, audioCtx.currentTime);
-        osc.type = 'sine';  // You can experiment with 'sawtooth' or 'square' for different effects
+        for (let i = 0; i < numOscillators; i++) {
+            const osc = audioCtx.createOscillator();
+            osc.frequency.setValueAtTime(targetFrequencies[i], audioCtx.currentTime);
+            osc.type = 'sine';  // Use sine waves for now
 
-        // Create a gain node for each oscillator to control amplitude
-        const oscGain = audioCtx.createGain();
-        oscGain.gain.value = 0;  // Start with zero gain
+            const oscGain = audioCtx.createGain();
+            oscGain.gain.value = 0;  // Start with no sound
 
-        osc.connect(oscGain);
-        oscGain.connect(audioCtx.destination);
+            osc.connect(oscGain);
+            oscGain.connect(audioCtx.destination);
+            osc.start();
 
-        // Start the oscillator
-        osc.start();
-
-        // Keep track of the oscillator and gain node
-        oscillators.push(osc);
-        gainNodes.push(oscGain);
-      }
-
-      // Function to update oscillator amplitudes based on the FFT data
-      function processAudio() {
-        analyser.getFloatFrequencyData(dataArray);  // Get frequency data (in dB)
-
-        // Adjust the gain of each oscillator based on the frequency data
-        for (let i = 0; i < bufferLength; i++) {
-          const amplitude = Math.max(dataArray[i], -100);  // Clamp amplitude values
-          gainNodes[i].gain.setValueAtTime((amplitude + 100) / 1000, audioCtx.currentTime);  // Normalize amplitude
+            oscillators.push(osc);
+            gainNodes.push(oscGain);
         }
 
-        // Continue processing audio
-        requestAnimationFrame(processAudio);
-      }
+        function processAudio() {
+            analyser.getFloatFrequencyData(dataArray);
 
-      processAudio();  // Start processing the audio
+            // Match FFT bins to the nearest target frequencies and adjust oscillator gains
+            for (let i = 0; i < numOscillators; i++) {
+            // Find the nearest FFT bin to the target frequency
+            let closestBin = Math.round(targetFrequencies[i] * analyser.fftSize / audioCtx.sampleRate);
+
+            // Make sure the bin index is valid
+            if (closestBin >= 0 && closestBin < bufferLength) {
+                const amplitude = Math.max(dataArray[closestBin], -100);  // Clamp amplitude
+                gainNodes[i].gain.setValueAtTime((amplitude + 100) / 100, audioCtx.currentTime);
+            }
+            }
+
+            requestAnimationFrame(processAudio);
+        }
+
+        processAudio();
     }
 
     // Initialize the vocoder when the button is clicked
     document.querySelector('#start-vocoder').addEventListener('click', () => {
       initVocoder();
     });
+
   </script>
 </body>
 </html>

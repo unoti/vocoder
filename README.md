@@ -11,3 +11,5 @@ It reacted to my voice and I could almost understand it, but not really.  It sou
 
 ## Attempt 2
 I wonder if doing some kind of exponential selection of the bins, perhaps similar or identical to what you were proposing earlier, could be the solution. I say this because I don't think I actually need/want thousands of oscillators, I just need a smaller number of oscillators at the right frequencies (this is a theory, I could be wrong!).  I don't know how to configure the analyzer to do this, though.  We of course can easily control the frequency of our oscillators.
+
+https://en.wikipedia.org/wiki/Mel-frequency_cepstrum
