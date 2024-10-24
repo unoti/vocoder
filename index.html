@@ -22,11 +22,34 @@
   <button id="start-vocoder" onclick="">Start Vocoder</button>
 
   <script>
+    function freqToMel(frequency) {
+        return 1125 * Math.log(1 + frequency / 700);
+    }
+
+    function melToFreq(mel) {
+        return 700 * (Math.exp(mel / 1125) - 1);
+    }
+
+    function getExponentialBins(minFreq, maxFreq, numBins) {
+        const melMin = freqToMel(minFreq);
+        const melMax = freqToMel(maxFreq);
+        const melRange = melMax - melMin;
+        const bins = [];
+
+        for (let i = 0; i < numBins; i++) {
+            const mel = melMin + (melRange / numBins) * i;
+            bins.push(melToFreq(mel));
+        }
+
+    return bins;  // Frequencies distributed exponentially
+    }
+
     async function initVocoder() {
+        const sampleRateMs = 10; // Audio Window size in millseconds.
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         const analyser = audioCtx.createAnalyser();
         
-        analyser.fftSize = 2048;  // Adjust this for more or fewer frequency bins
+        analyser.fftSize = 1024;  // Adjust this for more or fewer frequency bins
         const bufferLength = analyser.frequencyBinCount;
         const dataArray = new Float32Array(bufferLength);
 
@@ -82,7 +105,8 @@
             }
             }
 
-            requestAnimationFrame(processAudio);
+            //requestAnimationFrame(processAudio);
+            setInterval(processAudio, sampleRateMs);
         }
 
         processAudio();
